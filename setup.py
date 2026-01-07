@@ -1,14 +1,14 @@
 #
-# pkmodel setuptools script
+# atmicp setuptools script
 #
 from setuptools import setup, find_packages
 
 
 def get_version():
     """
-    Get version number from the pkmodel module.
+    Get version number from the atmicp module.
 
-    The easiest way would be to just ``import pkmodel ``, but note that this may
+    The easiest way would be to just ``import atmicp ``, but note that this may
     fail if the dependencies have not been installed yet. Instead, we've put
     the version number in a simple version_info module, that we'll import here
     by temporarily adding the oxrse directory to the pythonpath using sys.path.
@@ -16,7 +16,7 @@ def get_version():
     import os
     import sys
 
-    sys.path.append(os.path.abspath('pkmodel'))
+    sys.path.append(os.path.abspath('atmicp'))
     from version_info import VERSION as version
     sys.path.pop()
 
@@ -34,12 +34,12 @@ def get_readme():
 # Go!
 setup(
     # Module name (lowercase)
-    name='pkmodel',
+    name='atmicp',
 
     # Version
     version=get_version(),
 
-    description='An example Python project.',
+    description='Atmospheric initial condition perturbations in IFS for forecast-based attribution',
 
     long_description=get_readme(),
 
@@ -49,14 +49,14 @@ setup(
 
     # author_email='',
 
-    maintainer='Martin Robinson',
+    maintainer='Shirin Ermis',
 
-    maintainer_email='martin.robinson@cs.ox.ac.uk',
+    maintainer_email='shirin.ermis@physics.ox.ac.uk',
 
-    url='https://github.com/SABS-R3/2020-software-engineering-projects-pk',
+    url='',
 
     # Packages to include
-    packages=find_packages(include=('pkmodel', 'pkmodel.*')),
+    packages=find_packages(include=('atmicp', 'atmicp.*')),
 
     # List of dependencies
     install_requires=[

@@ -1,5 +1,5 @@
 import unittest
-import pkmodel as pk
+import atmicp as pk
 
 
 class SolutionTest(unittest.TestCase):

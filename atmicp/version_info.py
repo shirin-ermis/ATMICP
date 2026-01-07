@@ -1,5 +1,5 @@
 #
-# Version information for pkmodel.
+# Version information for atmicp.
 #
 # See: https://packaging.python.org/guides/single-sourcing-package-version/
 #

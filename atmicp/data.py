@@ -1,9 +1,9 @@
 #
-# Model class
+# Data class
 #
 
-class Model:
-    """A Pharmokinetic (PK) model
+class Data:
+    """A data class for ATMICP
 
     Parameters
     ----------
@@ -12,6 +12,6 @@ class Model:
         an example paramter
 
     """
-    def __init__(self, value=42):
+    def __init__(self, value=44):
         self.value = value
 

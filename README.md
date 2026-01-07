@@ -1,2 +1,2 @@
-# 2020-software-engineering-projects-pk
-starter pk modelling repository
+# Atmospheric initial condition perturbations in IFS
+Exploring state-specific initial condition perturbations in IFS for forecast-based attribution.

@@ -4,6 +4,7 @@
 import xarray as xr
 import os
 import babet as bb
+from moarpalettes import get_palette
 
 class Data:
     """A data class for ATMICP
@@ -15,6 +16,7 @@ class Data:
         an example paramter
 
     """
+
     def __init__(self, value=44):
         self.value = value
 

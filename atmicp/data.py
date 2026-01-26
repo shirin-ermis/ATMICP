@@ -20,7 +20,7 @@ class Data:
     def __init__(self, value=44):
         self.value = value
 
-    def get_ifs_data(self, cf_option=['cf', 'pf'], exp_option=['pi', 'curr', 'incr']):
+    def get_ifs_data(cf_option=['cf', 'pf'], exp_option=['pi', 'curr', 'incr'], res='US025', levtype='sfc'):
         """Get IFS data
 
         Inputs
@@ -32,6 +32,8 @@ class Data:
             - 'incr' : increased greenhouse gases climate
         cf_option: list of str
             List of 'cf' and 'pf' option
+        res: str
+            Resolution and area string, e.g. 'US025', 'GLO100'
         
         Returns
         -------
@@ -40,8 +42,23 @@ class Data:
 
         """
 
-        base_dir = '/gf5/predict/AWH019_ERMIS_ATMICP/ITERATION/MED-R/EXP/{}/GLO025/sfc/{}'
+        # Exception handling
+        if res not in ['US025', 'GLO100']:
+            raise ValueError("res must be one of ['US025', 'GLO100']")
+        if levtype not in ['sfc', 'pl']:
+            raise ValueError("levtype must be one of ['sfc', 'pl']")
+        
+        if not set(exp_option).issubset(set(['pi', 'curr', 'incr'])):
+            raise ValueError("exp_option must be subset of ['pi', 'curr', 'incr']")
+        if not set(cf_option).issubset(set(['cf', 'pf'])):
+            raise ValueError("cf_option must be subset of ['cf', 'pf']")
+        
+        if res == 'US025' and levtype == 'pl':
+            raise ValueError("res 'US025' only supports levtype 'sfc'")
 
+        # perturb_option = ['q_and_t', 'progn_vars'] # TODO: build this in as argument 
+
+        base_dir = '/gf5/predict/AWH019_ERMIS_ATMICP/ITERATION/MED-R/EXP/{}/{}/{}/{}' # exp, res, levtype, cf
         expver_dict = {'pi': ['b2us', 'b2uu'],
                         'curr': ['b2ut'],
                         'incr': ['b2v0', 'b2v1']}
@@ -62,7 +79,7 @@ class Data:
                 # collect files/variants that should map to 'number'
                 number_dsets = []
                 for c in cf_option:
-                    dir_path = os.path.join(base_dir.format(exp, c), f'{expver}*.nc')
+                    dir_path = os.path.join(base_dir.format(exp, res, levtype, c), f'{expver}*.nc')
                     ds = xr.open_mfdataset(
                         dir_path,
                         engine='netcdf4',
@@ -74,10 +91,11 @@ class Data:
                     number_dsets.append(ds)
 
                 # concat the list of 'number' variants into the number dimension
+                # (if cf_option has length 1 this will still be fine)
                 perturb_ds = xr.concat(number_dsets, dim='number')
                 perturb_dsets.append(perturb_ds)
 
-            # concat all perturbations for one climate along 'perturbation'
+            # concat all perturbations for THIS climate along 'perturbation'
             climate_ds = xr.concat(perturb_dsets, dim='perturbation')
             climate_dsets.append(climate_ds)
 

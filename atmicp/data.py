@@ -68,6 +68,9 @@ class Data:
                     'b2ut': 'none',
                     'b2v0': 't+q',
                     'b2v1': 'progn_vars'}
+        
+        variables = {'sfc': ['t2m', 'msl', 'tcwv'],
+            'pl': ['t', 'z', 'q']}
 
         # collect per-climate datasets (each will have climate dim length 1)
         climate_dsets = []
@@ -84,7 +87,7 @@ class Data:
                         dir_path,
                         engine='netcdf4',
                         preprocess=bb.data.Data.preproc_ds_v2
-                    ).get(['t2m', 'msl', 'tcwv'])
+                    ).get(variables[levtype])
 
                     # give single-file/collection the scalar dims climate & perturbation
                     ds = ds.expand_dims(climate=[exp], perturbation=[perturb_dict[expver]])

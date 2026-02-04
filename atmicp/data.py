@@ -5,6 +5,7 @@ import xarray as xr
 import os
 import babet as bb
 from moarpalettes import get_palette
+import dask
 
 class Data:
     """A data class for ATMICP

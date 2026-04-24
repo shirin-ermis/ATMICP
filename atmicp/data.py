@@ -21,7 +21,13 @@ class Data:
     def __init__(self, value=44):
         self.value = value
 
-    def get_ifs_data(cf_option=['cf', 'pf'], exp_option=['pi', 'curr', 'incr'], res='US025', levtype='sfc'):
+    def get_ifs_data(
+            cf_option=['cf', 'pf'], 
+            exp_option=['pi', 'curr', 'incr'], 
+            res='US025', 
+            levtype='sfc'
+            ):
+        
         """Get IFS data
 
         Inputs
@@ -60,15 +66,23 @@ class Data:
         # perturb_option = ['q_and_t', 'progn_vars'] # TODO: build this in as argument 
 
         base_dir = '/gf5/predict/AWH019_ERMIS_ATMICP/ITERATION/MED-R/EXP/{}/{}/{}/{}' # exp, res, levtype, cf
-        expver_dict = {'pi': ['b2us', 'b2uu'],
+        expver_dict = {'pi': ['b2us', 'b2uu', 'b2ve', 'b2vc'],
                         'curr': ['b2ut'],
-                        'incr': ['b2v0', 'b2v1']}
+                        'incr': ['b2v0', 'b2v1', 'b2vb', 'b2vd']}
         
-        perturb_dict = {'b2us': 't+q',
-                    'b2uu': 'progn_vars',
-                    'b2ut': 'none',
-                    'b2v0': 't+q',
-                    'b2v1': 'progn_vars'}
+        perturb_dict = {
+            'b2ut': 'none', # actual climate
+
+            'b2us': 'tq', # preindustrial
+            'b2uu': 'progn_vars',
+            'b2ve': 'tqdvo',
+            'b2vc': 'dvo',
+                    
+            'b2v0': 'tq', # future 
+            'b2v1': 'progn_vars',
+            'b2vb': 'tqdvo',
+            'b2vd': 'dvo'
+            }
         
         variables = {'sfc': ['t2m', 'msl', 'tcwv'],
             'pl': ['t', 'z', 'q']}
@@ -83,6 +97,7 @@ class Data:
                 # collect files/variants that should map to 'number'
                 number_dsets = []
                 for c in cf_option:
+                    print(f"Scanning directory {os.path.join(base_dir.format(exp, res, levtype, c))} for {expver}*.nc", flush=True)
                     dir_path = os.path.join(base_dir.format(exp, res, levtype, c), f'{expver}*.nc')
                     ds = xr.open_mfdataset(
                         dir_path,

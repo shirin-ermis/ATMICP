@@ -122,4 +122,30 @@ class Data:
         ifs = xr.concat(climate_dsets, dim='climate')
         
         return ifs
+    
+    def get_lsm(res='US025'):
+        """Get land-sea mask
+
+        Parameters
+        ----------
+        res: str
+            Resolution string, e.g. 'US025', 'GLO100'
+        
+        Returns
+        -------
+        xarray.DataArray
+            Land-sea mask
+
+        """
+
+        if res not in ['US025', 'GLO100']:
+            raise ValueError("res must be one of ['US025', 'GLO100']")
+        elif res == 'US025':
+            raise ValueError("LSM not yet available for US025 resolution")
+        elif res == 'GLO100':
+            lsm_dir = '/gf5/predict/AWH019_ERMIS_ATMICP/ITERATION/ifs_lsm_{}.nc'
+            lsm_path = lsm_dir.format(res)
+            lsm = xr.open_dataset(lsm_path).lsm.squeeze('time') 
+        
+        return lsm
 

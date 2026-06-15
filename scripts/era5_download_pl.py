@@ -5,8 +5,8 @@ import xarray as xr
 import os
 import subprocess
 
-var = 'v'
-long_var = 'v_component_of_wind'
+var = 'd'
+long_var = 'divergence'
 savedir = f'/gf5/predict/AWH019_ERMIS_ATMICP/DATA/ERA5/{var}_monthly/' # make sure dir exists
 
 filename = f'{savedir}{var}_mon_ERA5_0.25x0.25_197901-202512.nc'

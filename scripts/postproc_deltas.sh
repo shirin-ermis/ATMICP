@@ -1,0 +1,80 @@
+#!/bin/bash
+#SBATCH --job-name=q_and_t_delta      # Job name
+#SBATCH --output=output.log           # Output log file
+#SBATCH --error=error.log             # Error log file
+#SBATCH --ntasks=1                    # Number of tasks (usually 1 for Python)
+#SBATCH --cpus-per-task=4             # Number of CPU cores
+#SBATCH --mem=48G                     # Memory allocation (adjust as needed)
+#SBATCH --time=03:00:00               # Max runtime (HH:MM:SS)
+#SBATCH --partition=shared            # Partition/queue name (adjust for your system)
+#SBATCH --mail-type=END,FAIL          # Notifications for job completion/failure
+#SBATCH --mail-user=shirin.ermis@physics.ox.ac.uk    # Your email (optional)
+
+# conda environments
+source /home/e/ermis/nobackups/miniforge3/etc/profile.d/conda.sh
+# conda env list
+conda activate debug_forecast-icp
+
+# Change variable here
+VAR='q' # True if interpolating q, False if interpolating t
+
+# is variable in spherical harmonics in IFS?
+declare -A on_spherical_harm
+on_spherical_harm[q]=false
+on_spherical_harm[t]=true
+on_spherical_harm[d]=true
+on_spherical_harm[vo]=true
+
+# directories
+deltas_dir='/gf5/predict/AWH019_ERMIS_ATMICP/DATA/postproc/deltas'
+
+if [ "${on_spherical_harm[$VAR]}"=="false" ]; then # for variables on regular grid
+    echo "Running offset for $VAR"
+
+    for month in {1..12}; do
+
+        # calculate deltas from monthly means
+        echo "Calculating $VAR delta for month $month"
+        python calc_offset.py "$PERTURB_MONTH" "$VAR" # calculate deltas for the month of perturbation
+
+        # name of delta file
+        delta_file="${VAR}_${PERTURB_MONTH}_delta_ERA5_1979-2023.nc"
+
+        # deal with missing values
+        cdo setmisstoc,0 deltas/q_interp.nc deltas/tmp.nc
+        cp $deltas_dir/${VAR}_interp_ERA5_1979-2023.nc $deltas_dir/tmp.nc
+
+        # Add hyai, hybi, hyam, hybm variables from a donor file, add metadata to the level dimension
+        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc $deltas_dir/donor_q.nc
+        ncrename -d lev,level $deltas_dir/donor_q.nc # rename dimension
+        ncrename -v lev,level $deltas_dir/donor_q.nc # rename variable
+        ncks -A -v level,hyam,hybm,hyai,hybi $deltas_dir/donor_q.nc $deltas_dir/tmp.nc
+
+        # Convert to grib2
+        cdo -f grb2 copy $deltas_dir/tmp.nc $deltas_dir/${VAR}_interp_ERA5_1979-2023.grb2
+        rm $deltas_dir/tmp.nc
+    done
+
+else
+    echo "Running offset for $VAR"
+
+    # calculate deltas from monthly means
+    for month in {1..12}; do
+        python calc_offset.py "$PERTURB_MONTH" "$VAR" # calculate deltas for the month of perturbation
+
+        cp $deltas_dir/${VAR}_interp_ERA5_1979-2023.nc $deltas_dir/tmp_t.nc
+
+        # Add hyai, hybi, hyam, hybm variables from a donor file, add metadata to the level dimension
+        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc $deltas_dir/donor_q.nc
+        ncrename -d lev,level $deltas_dir/donor_q.nc # rename dimension
+        ncrename -v lev,level $deltas_dir/donor_q.nc # rename variable
+        ncks -A -v level,hyam,hybm,hyai,hybi $deltas_dir/donor_q.nc $deltas_dir/tmp_t.nc
+
+        # Convert file to grib in spherical coordinates
+        cdo setmisstoc,0 $deltas_dir/tmp_t.nc $deltas_dir/tmp_t_tmp.grb2
+        cdo -f grb2 gp2spl $deltas_dir/tmp_t_tmp.grb2 $deltas_dir/${VAR}_interp_sh_ERA5_1979-2023.grb2
+        rm $deltas_dir/tmp_t_tmp.grb2
+        rm $deltas_dir/tmp_t.nc
+    done
+fi
+

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=erasp               # Job name
+#SBATCH --job-name=erasd               # Job name
 #SBATCH --output=output.log           # Output log file
 #SBATCH --error=error.log             # Error log file
 #SBATCH --ntasks=1                    # Number of tasks (usually 1 for Python)
@@ -16,4 +16,4 @@ source /home/e/ermis/nobackups/miniforge3/etc/profile.d/conda.sh
 conda activate cdsapi
 
 # Run your Python script
-python era5_download_sfc.py
+python era5_download_pl.py

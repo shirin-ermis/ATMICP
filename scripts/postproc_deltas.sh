@@ -17,6 +17,9 @@ conda activate debug_forecast-icp
 
 # Change variable here
 VAR='q' # True if interpolating q, False if interpolating t
+MONTHS=(8)
+START_YEAR=1979
+END_YEAR=2023
 
 # is variable in spherical harmonics in IFS?
 declare -A on_spherical_harm
@@ -28,21 +31,21 @@ on_spherical_harm[vo]=true
 # directories
 deltas_dir='/gf5/predict/AWH019_ERMIS_ATMICP/DATA/postproc/deltas'
 
-if [ "${on_spherical_harm[$VAR]}"=="false" ]; then # for variables on regular grid
-    echo "Running offset for $VAR"
+if [[ "${on_spherical_harm[$VAR]}" == "false" ]]; then # for variables on regular grid
+    echo "Running delta postprocessing for $VAR, spherical harmonics: ${on_spherical_harm[$VAR]}"
 
-    for month in {1..12}; do
+    for month in "${MONTHS[@]}"; do
 
         # calculate deltas from monthly means
         echo "Calculating $VAR delta for month $month"
-        python calc_offset.py "$PERTURB_MONTH" "$VAR" # calculate deltas for the month of perturbation
+        python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
         # name of delta file
-        delta_file="${VAR}_${PERTURB_MONTH}_delta_ERA5_1979-2023.nc"
+        delta_file="${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc"
 
         # deal with missing values
         cdo setmisstoc,0 deltas/q_interp.nc deltas/tmp.nc
-        cp $deltas_dir/${VAR}_interp_ERA5_1979-2023.nc $deltas_dir/tmp.nc
+        cp $deltas_dir/${VAR}_interp_ERA5_${START_YEAR}-${END_YEAR}.nc $deltas_dir/tmp.nc
 
         # Add hyai, hybi, hyam, hybm variables from a donor file, add metadata to the level dimension
         cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc $deltas_dir/donor_q.nc
@@ -51,18 +54,18 @@ if [ "${on_spherical_harm[$VAR]}"=="false" ]; then # for variables on regular gr
         ncks -A -v level,hyam,hybm,hyai,hybi $deltas_dir/donor_q.nc $deltas_dir/tmp.nc
 
         # Convert to grib2
-        cdo -f grb2 copy $deltas_dir/tmp.nc $deltas_dir/${VAR}_interp_ERA5_1979-2023.grb2
+        cdo -f grb2 copy $deltas_dir/tmp.nc $deltas_dir/${VAR}_interp_ERA5_${START_YEAR}-${END_YEAR}.grb2
         rm $deltas_dir/tmp.nc
     done
 
 else
-    echo "Running offset for $VAR"
+    echo "Running delta postprocessing for $VAR, spherical harmonics: ${on_spherical_harm[$VAR]}"
 
     # calculate deltas from monthly means
     for month in {1..12}; do
-        python calc_offset.py "$PERTURB_MONTH" "$VAR" # calculate deltas for the month of perturbation
+        python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
-        cp $deltas_dir/${VAR}_interp_ERA5_1979-2023.nc $deltas_dir/tmp_t.nc
+        cp $deltas_dir/${VAR}_interp_ERA5_${START_YEAR}-${END_YEAR}.nc $deltas_dir/tmp_t.nc
 
         # Add hyai, hybi, hyam, hybm variables from a donor file, add metadata to the level dimension
         cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc $deltas_dir/donor_q.nc
@@ -72,7 +75,7 @@ else
 
         # Convert file to grib in spherical coordinates
         cdo setmisstoc,0 $deltas_dir/tmp_t.nc $deltas_dir/tmp_t_tmp.grb2
-        cdo -f grb2 gp2spl $deltas_dir/tmp_t_tmp.grb2 $deltas_dir/${VAR}_interp_sh_ERA5_1979-2023.grb2
+        cdo -f grb2 gp2spl $deltas_dir/tmp_t_tmp.grb2 $deltas_dir/${VAR}_interp_sh_ERA5_${START_YEAR}-${END_YEAR}.grb2
         rm $deltas_dir/tmp_t_tmp.grb2
         rm $deltas_dir/tmp_t.nc
     done

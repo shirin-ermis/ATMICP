@@ -16,10 +16,10 @@ source /home/e/ermis/nobackups/miniforge3/etc/profile.d/conda.sh
 conda activate debug_forecast-icp
 
 # Change variable here
-VAR='q' # True if interpolating q, False if interpolating t
+VAR='vo' # True if interpolating q, False if interpolating t
 MONTHS=(8)
 START_YEAR=1979
-END_YEAR=2023
+END_YEAR=2021
 
 # is variable in spherical harmonics in IFS?
 declare -A on_spherical_harm
@@ -44,18 +44,20 @@ if [[ "${on_spherical_harm[$VAR]}" == "false" ]]; then # for variables on regula
         delta_file="${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc"
 
         # deal with missing values
-        cdo setmisstoc,0 deltas/q_interp.nc deltas/tmp.nc
-        cp $deltas_dir/${VAR}_interp_ERA5_${START_YEAR}-${END_YEAR}.nc $deltas_dir/tmp.nc
+        cdo setmisstoc,0 ${deltas_dir}/${delta_file} ${deltas_dir}/tmp.nc
+        # cp ${deltas_dir}/${delta_file} ${deltas_dir}/tmp.nc # if missing values treatment not needed
 
         # Add hyai, hybi, hyam, hybm variables from a donor file, add metadata to the level dimension
-        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc $deltas_dir/donor_q.nc
-        ncrename -d lev,level $deltas_dir/donor_q.nc # rename dimension
-        ncrename -v lev,level $deltas_dir/donor_q.nc # rename variable
-        ncks -A -v level,hyam,hybm,hyai,hybi $deltas_dir/donor_q.nc $deltas_dir/tmp.nc
+        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc ${deltas_dir}/donor_q.nc
+        ncrename -d lev,level ${deltas_dir}/donor_q.nc # rename dimension
+        ncrename -v lev,level ${deltas_dir}/donor_q.nc # rename variable
+        ncks -A -v level,hyam,hybm,hyai,hybi ${deltas_dir}/donor_q.nc ${deltas_dir}/tmp.nc
 
         # Convert to grib2
-        cdo -f grb2 copy $deltas_dir/tmp.nc $deltas_dir/${VAR}_interp_ERA5_${START_YEAR}-${END_YEAR}.grb2
-        rm $deltas_dir/tmp.nc
+        cdo -f grb2 copy ${deltas_dir}/tmp.nc ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
+
+        # Clean up
+        rm ${deltas_dir}/tmp.nc
     done
 
 else
@@ -65,19 +67,21 @@ else
     for month in {1..12}; do
         python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
-        cp $deltas_dir/${VAR}_interp_ERA5_${START_YEAR}-${END_YEAR}.nc $deltas_dir/tmp_t.nc
+        cp ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc ${deltas_dir}/tmp_t.nc
 
         # Add hyai, hybi, hyam, hybm variables from a donor file, add metadata to the level dimension
-        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc $deltas_dir/donor_q.nc
-        ncrename -d lev,level $deltas_dir/donor_q.nc # rename dimension
-        ncrename -v lev,level $deltas_dir/donor_q.nc # rename variable
-        ncks -A -v level,hyam,hybm,hyai,hybi $deltas_dir/donor_q.nc $deltas_dir/tmp_t.nc
+        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc ${deltas_dir}/donor_t.nc
+        ncrename -d lev,level ${deltas_dir}/donor_t.nc # rename dimension
+        ncrename -v lev,level ${deltas_dir}/donor_t.nc # rename variable
+        ncks -A -v level,hyam,hybm,hyai,hybi ${deltas_dir}/donor_t.nc ${deltas_dir}/tmp_t.nc
 
         # Convert file to grib in spherical coordinates
-        cdo setmisstoc,0 $deltas_dir/tmp_t.nc $deltas_dir/tmp_t_tmp.grb2
-        cdo -f grb2 gp2spl $deltas_dir/tmp_t_tmp.grb2 $deltas_dir/${VAR}_interp_sh_ERA5_${START_YEAR}-${END_YEAR}.grb2
-        rm $deltas_dir/tmp_t_tmp.grb2
-        rm $deltas_dir/tmp_t.nc
+        cdo setmisstoc,0 ${deltas_dir}/tmp_t.nc ${deltas_dir}/tmp_t_tmp.grb2
+        cdo -f grb2 gp2spl ${deltas_dir}/tmp_t_tmp.grb2 ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
+        
+        # Clean up
+        rm ${deltas_dir}/tmp_t_tmp.grb2
+        rm ${deltas_dir}/tmp_t.nc
     done
 fi
 

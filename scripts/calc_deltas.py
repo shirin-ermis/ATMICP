@@ -94,6 +94,9 @@ def get_AWI():
     mlr.fit(X)
     AWI = ( mlr.B[1]*fair_temps.aer + mlr.B[2]*fair_temps.ant ).default
 
+    # NOTE I could have one AWI that is longer that I use for the regression against ERA5 
+    # and another that ends in 2022 for the regression against HC5. Need to implement later
+
     return AWI
 
 if __name__ == "__main__":
@@ -118,7 +121,7 @@ if __name__ == "__main__":
     era5_var = era5_var.chunk({"time": -1}) # massive speedup!
     
     for month in PERTURB_MONTH:
-        # TODO check year
+        
         var_years = era5_var.sel(time=months.isin([month])).groupby('time.year').mean(dim='time').sel(year=slice(START_YEAR, END_YEAR)) # select the specified month and average each year
 
         print(f"### Regressing using data from {START_YEAR} to {END_YEAR} ###")
@@ -127,26 +130,25 @@ if __name__ == "__main__":
         timeslices = [x for x in np.arange(START_YEAR,END_YEAR+1,1)] 
         X = np.array([awi.loc[timeslice] for timeslice in timeslices])
         X = X[:,None,None,None]
-        print(X.shape, var_years[VAR].shape)
-        # Y = var_years[VAR].squeeze().values
-        # olsreg = OLSE.simple( Y = Y )
+        Y = var_years[VAR].squeeze().values
+        olsreg = OLSE.simple( Y = Y )
 
-        # # create objects for computation
-        # olsreg.X = np.ma.array(X, mask=olsreg._mask)
+        # create objects for computation
+        olsreg.X = np.ma.array(X, mask=olsreg._mask)
 
-        # w = olsreg.W
+        w = olsreg.W
 
-        # x = olsreg.X
-        # y = olsreg.Y
-        # olsreg.fit( X = X )
+        x = olsreg.X
+        y = olsreg.Y
+        olsreg.fit( X = X )
 
-        # # compute estimated attributable warming over 1850-1900 to endyear period
-        # var3d_out = olsreg.b1 * (awi.loc[END_YEAR] - awi.loc[1850:1900].mean())
+        # compute estimated attributable warming over 1850-1900 to endyear period
+        var3d_out = olsreg.b1 * (awi.loc[END_YEAR] - awi.loc[1850:1900].mean())
 
-        # # create DataArray object
-        # var3d_out = xr.zeros_like(var_years[VAR].isel(year=-1).squeeze()) + var3d_out
+        # create DataArray object
+        var3d_out = xr.zeros_like(var_years[VAR].isel(year=-1).squeeze()) + var3d_out
         
-        # print("### Regridding and saving ###")
+        print("### Regridding and saving ###")
 
-        # # Interpolate and save as nc file
-        # var_interp = interpolate_to_model_grid(var3d_out, sh=sh_var).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')
+        # Interpolate and save as nc file
+        var_interp = interpolate_to_model_grid(var3d_out, sh=sh_var).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')

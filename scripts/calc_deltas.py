@@ -7,16 +7,27 @@ import sys
 import pathlib
 from fair import *
 from fair import return_empty_emissions, run_FaIR
+import argparse
 
 # definitions
 AOPP_BASE_PATH = '/gf5/predict/AWH019_ERMIS_ATMICP/DATA/'
 DELTA_PATH = f'{AOPP_BASE_PATH}/postproc/deltas/'
 
-
-# delta script params -- script needs two inputs!
-SEASONAL = False # is this a seasonal forecast
-PERTURB_MONTH = [int(x) for x in sys.argv[1]] # month of perturbation
-VAR = sys.argv[2] # variable to calculate delta for
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--month",
+    type=int,
+    nargs="+",
+    required=True
+)
+parser.add_argument("--var", required=True)
+parser.add_argument("--start_year", type=int)
+parser.add_argument("--end_year", type=int)
+args = parser.parse_args()
+PERTURB_MONTH = args.month # month to create delta for
+VAR = args.var # variable to create delta for
+START_YEAR = args.start_year if args.start_year is not None else 1979 # start year for regression
+END_YEAR = args.end_year # end year for regression
 
 def interpolate_to_model_grid(ds, sh=False):
 
@@ -47,7 +58,7 @@ def get_HC5():
 
     return HC5
 
-def get_erf(end_year=2022):
+def get_erf():
 
     ## ERF components from AR6
     erf_ar6 = pd.read_csv('{}source/ancil/AR6_ERF_1750-2019.csv'.format(AOPP_BASE_PATH),index_col=0)
@@ -58,16 +69,16 @@ def get_erf(end_year=2022):
     ssp245_erf['aerosol'] = ssp245_erf.loc[:,'aerosol-radiation_interactions'] + ssp245_erf.loc[:,'aerosol-cloud_interactions']
     ssp245_erf.loc[:,'ghg'] = ssp245_erf.loc[:,'total_anthropogenic'] - ssp245_erf.loc[:,'aerosol']
     
-    # for year in range(2020,end_year+1): 
     for year in [2020, 2021, 2022]: # not using end_year here, why?
         erf_ar6.loc[year] = ssp245_erf.loc[year] * erf_ar6.loc[year-1] / ssp245_erf.loc[year-1]
 
     return erf_ar6
 
-def get_AWI(end_year=2022):
+def get_AWI():
 
+    end_year = 2022
     HC5 = get_HC5()
-    erf = get_erf(end_year=end_year)
+    erf = get_erf()
 
     ## ant / nat FaIR run
     fair_erf = pd.DataFrame(index=erf.index,columns=pd.MultiIndex.from_product([['ant','aer','nat'],['forcing']]),
@@ -87,58 +98,55 @@ def get_AWI(end_year=2022):
 
 if __name__ == "__main__":
     
+    assert END_YEAR<=2022, "End year must be less than or equal to 2022, HC5 limited to 2022"
+
     print("### Importing data ###")
     
     # Load ERA5 data
     era5_var  = xr.open_dataset(f'{AOPP_BASE_PATH}/ERA5/{VAR}_monthly/{VAR}_mon_ERA5_0.25x0.25_197901-202512.nc').rename(
-        {'valid_time': 'time'}
+        {'valid_time': 'time', 'pressure_level': 'level'}
     )
     sh_var = {'q': False, 't': True, 'd': True,
               'vo': True, 'u': False, 'v': False}[VAR] # is this variable on the spherical harmonic grid?
 
     # Anthropogenic warming index
     awi = get_AWI()
-    print(awi.shape)
 
     # Select only the specified month
-    start_year = 1979
-    end_year = 2023
     months = era5_var['time'].dt.month
 
-    # if isinstance(PERTURB_MONTH, int):
-    #     PERTURB_MONTH = [PERTURB_MONTH]
-    #     print(f"### Calculating deltas for month {PERTURB_MONTH} ###")
-
-    print(f"### Month type: {type(PERTURB_MONTH[0])} ###")
+    era5_var = era5_var.chunk({"time": -1}) # massive speedup!
+    
     for month in PERTURB_MONTH:
-        var_years = era5_var.sel(time=months.isin([month])).groupby('time.year').mean(dim='time').sel(year=slice(start_year, 2022)) # select the specified month and average each year
+        # TODO check year
+        var_years = era5_var.sel(time=months.isin([month])).groupby('time.year').mean(dim='time').sel(year=slice(START_YEAR, END_YEAR)) # select the specified month and average each year
 
-        print(f"### Regressing using data from {start_year} to {end_year} ###")
+        print(f"### Regressing using data from {START_YEAR} to {END_YEAR} ###")
         
         # Interpolate variable
-        timeslices = [x for x in np.arange(start_year,end_year,1)] 
+        timeslices = [x for x in np.arange(START_YEAR,END_YEAR+1,1)] 
         X = np.array([awi.loc[timeslice] for timeslice in timeslices])
         X = X[:,None,None,None]
-        Y = var_years[VAR].squeeze().values
-        print(X.shape, Y.shape)
-        olsreg = OLSE.simple( Y = Y )
+        print(X.shape, var_years[VAR].shape)
+        # Y = var_years[VAR].squeeze().values
+        # olsreg = OLSE.simple( Y = Y )
 
-        # create objects for computation
-        olsreg.X = np.ma.array(X, mask=olsreg._mask)
+        # # create objects for computation
+        # olsreg.X = np.ma.array(X, mask=olsreg._mask)
 
-        w = olsreg.W
+        # w = olsreg.W
 
-        x = olsreg.X
-        y = olsreg.Y
-        olsreg.fit( X = X )
+        # x = olsreg.X
+        # y = olsreg.Y
+        # olsreg.fit( X = X )
 
-        # compute estimated attributable warming over 1850-1900 to 2011 period
-        var3d_out = olsreg.b1 * (awi.loc[2011] - awi.loc[1850:1900].mean())
+        # # compute estimated attributable warming over 1850-1900 to endyear period
+        # var3d_out = olsreg.b1 * (awi.loc[END_YEAR] - awi.loc[1850:1900].mean())
 
-        # create DataArray object
-        var3d_out = xr.zeros_like(var_years[VAR].isel(year=-1).squeeze()) + var3d_out
+        # # create DataArray object
+        # var3d_out = xr.zeros_like(var_years[VAR].isel(year=-1).squeeze()) + var3d_out
         
-        print("### Regridding and saving ###")
+        # print("### Regridding and saving ###")
 
-        # Interpolate and save as nc file
-        var_interp = interpolate_to_model_grid(var3d_out, sh=sh_var)#.to_netcdf(f'{DELTA_PATH}/{VAR}_interp_ERA5_{start_year}-{end_year}_month{month}.nc')
+        # # Interpolate and save as nc file
+        # var_interp = interpolate_to_model_grid(var3d_out, sh=sh_var).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')

@@ -16,7 +16,7 @@ source /home/e/ermis/nobackups/miniforge3/etc/profile.d/conda.sh
 conda activate debug_forecast-icp
 
 # Change variable here
-VAR='vo' # True if interpolating q, False if interpolating t
+VAR='t' # True if interpolating q, False if interpolating t
 MONTHS=(8)
 START_YEAR=1979
 END_YEAR=2021
@@ -64,7 +64,7 @@ else
     echo "Running delta postprocessing for $VAR, spherical harmonics: ${on_spherical_harm[$VAR]}"
 
     # calculate deltas from monthly means
-    for month in {1..12}; do
+    for month in "${MONTHS[@]}"; do
         python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
         cp ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc ${deltas_dir}/tmp_t.nc

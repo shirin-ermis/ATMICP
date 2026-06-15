@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=deltavo             # Job name
+#SBATCH --job-name=deltat             # Job name
 #SBATCH --output=output.log           # Output log file
 #SBATCH --error=error.log             # Error log file
 #SBATCH --ntasks=1                    # Number of tasks (usually 1 for Python)

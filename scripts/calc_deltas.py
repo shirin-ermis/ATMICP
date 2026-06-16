@@ -76,7 +76,7 @@ def get_erf():
 
 def get_AWI():
 
-    end_year = 2022
+    end_year = 2022 # fixed by HC5
     HC5 = get_HC5()
     erf = get_erf()
 

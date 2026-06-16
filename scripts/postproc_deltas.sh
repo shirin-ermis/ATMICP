@@ -1,23 +1,23 @@
 #!/bin/bash
-#SBATCH --job-name=q_and_t_delta      # Job name
+#SBATCH --job-name=deltad6             # Job name
 #SBATCH --output=output.log           # Output log file
 #SBATCH --error=error.log             # Error log file
 #SBATCH --ntasks=1                    # Number of tasks (usually 1 for Python)
 #SBATCH --cpus-per-task=4             # Number of CPU cores
-#SBATCH --mem=48G                     # Memory allocation (adjust as needed)
+#SBATCH --mem=80G                     # Memory allocation (adjust as needed)
 #SBATCH --time=03:00:00               # Max runtime (HH:MM:SS)
 #SBATCH --partition=shared            # Partition/queue name (adjust for your system)
 #SBATCH --mail-type=END,FAIL          # Notifications for job completion/failure
 #SBATCH --mail-user=shirin.ermis@physics.ox.ac.uk    # Your email (optional)
 
-# conda environments
+# Load necessary modules (if required)
 source /home/e/ermis/nobackups/miniforge3/etc/profile.d/conda.sh
 # conda env list
 conda activate debug_forecast-icp
 
 # Change variable here
-VAR='t' # True if interpolating q, False if interpolating t
-MONTHS=(8)
+VAR='d' # True if interpolating q, False if interpolating t
+MONTHS=(6)
 START_YEAR=1979
 END_YEAR=2021
 
@@ -65,23 +65,23 @@ else
 
     # calculate deltas from monthly means
     for month in "${MONTHS[@]}"; do
-        python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
+        # python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
-        cp ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc ${deltas_dir}/tmp_t.nc
+        cp ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc ${deltas_dir}/tmp_${VAR}.nc
 
         # Add hyai, hybi, hyam, hybm variables from a donor file, add metadata to the level dimension
-        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc ${deltas_dir}/donor_t.nc
-        ncrename -d lev,level ${deltas_dir}/donor_t.nc # rename dimension
-        ncrename -v lev,level ${deltas_dir}/donor_t.nc # rename variable
-        ncks -A -v level,hyam,hybm,hyai,hybi ${deltas_dir}/donor_t.nc ${deltas_dir}/tmp_t.nc
+        cp /gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/upptemp_with_blob_sh.nc ${deltas_dir}/donor_${VAR}.nc
+        ncrename -d lev,level ${deltas_dir}/donor_${VAR}.nc # rename dimension
+        ncrename -v lev,level ${deltas_dir}/donor_${VAR}.nc # rename variable
+        ncks -A -v level,hyam,hybm,hyai,hybi ${deltas_dir}/donor_${VAR}.nc ${deltas_dir}/tmp_${VAR}.nc
 
         # Convert file to grib in spherical coordinates
-        cdo setmisstoc,0 ${deltas_dir}/tmp_t.nc ${deltas_dir}/tmp_t_tmp.grb2
-        cdo -f grb2 gp2spl ${deltas_dir}/tmp_t_tmp.grb2 ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
+        cdo setmisstoc,0 ${deltas_dir}/tmp_${VAR}.nc ${deltas_dir}/tmp_${VAR}_tmp.grb2
+        cdo -f grb2 gp2spl ${deltas_dir}/tmp_${VAR}_tmp.grb2 ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
         
         # Clean up
-        rm ${deltas_dir}/tmp_t_tmp.grb2
-        rm ${deltas_dir}/tmp_t.nc
+        rm ${deltas_dir}/tmp_${VAR}_tmp.grb2
+        rm ${deltas_dir}/tmp_${VAR}.nc
     done
 fi
 

@@ -29,17 +29,14 @@ VAR = args.var # variable to create delta for
 START_YEAR = args.start_year if args.start_year is not None else 1979 # start year for regression
 END_YEAR = args.end_year # end year for regression
 
-def interpolate_to_model_grid(ds, sh=False):
+def interpolate_to_model_grid(ds, var):
 
     # load reference grid and pressure at model levels
     model_level_p = pd.read_csv('/home/e/ermis/Irene-damages/model_to_pressure_levels.csv')['ph [hPa]'].values[::-1][:137] # half levels pressure 
-    if sh: 
-        ref_ds = xr.open_dataset('/gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/TEMPBLOB_IC/temperature_blob_model_grid.grb2')
-    else:
-        ref_ds = xr.open_dataset('/home/e/ermis/test_ATMICP/grid_q.nc', engine='netcdf4')
+    ref_ds = xr.open_dataset(f'{AOPP_BASE_PATH}/postproc/deltas/aux/{var}_reg_ref.grb2')
     
     # horizontal interpolation
-    tmp = ds.interp(latitude=ref_ds.latitude, longitude=ref_ds.longitude, method='linear')
+    tmp = ds[var].interp(latitude=ref_ds.latitude, longitude=ref_ds.longitude, method='linear')
 
     # vertical interpolation
     tmp = tmp.interp(level=model_level_p, method='linear', kwargs={'fill_value': 'extrapolate'})
@@ -151,4 +148,4 @@ if __name__ == "__main__":
         print("### Regridding and saving ###")
 
         # Interpolate and save as nc file
-        var_interp = interpolate_to_model_grid(var3d_out, sh=sh_var).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')
+        var_interp = interpolate_to_model_grid(var3d_out, VAR=VAR).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')

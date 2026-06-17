@@ -65,7 +65,7 @@ else
 
     # calculate deltas from monthly means
     for month in "${MONTHS[@]}"; do
-        # python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
+        python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
         cp ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc ${deltas_dir}/tmp_${VAR}.nc
 

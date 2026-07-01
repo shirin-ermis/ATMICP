@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=deltad6             # Job name
+#SBATCH --job-name=delta-vo-5-7             # Job name
 #SBATCH --output=output.log           # Output log file
 #SBATCH --error=error.log             # Error log file
 #SBATCH --ntasks=1                    # Number of tasks (usually 1 for Python)
@@ -17,7 +17,7 @@ conda activate debug_forecast-icp
 
 # Change variable here
 VAR='d' # True if interpolating q, False if interpolating t
-MONTHS=(6)
+MONTHS=(5 7)
 START_YEAR=1979
 END_YEAR=2021
 

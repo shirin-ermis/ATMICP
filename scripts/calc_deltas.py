@@ -36,7 +36,7 @@ def interpolate_to_model_grid(ds, var):
     ref_ds = xr.open_dataset(f'{AOPP_BASE_PATH}/postproc/deltas/aux/{var}_reg_ref.grb2')
     
     # horizontal interpolation
-    tmp = ds[var].interp(latitude=ref_ds.latitude, longitude=ref_ds.longitude, method='linear')
+    tmp = ds.interp(latitude=ref_ds.latitude, longitude=ref_ds.longitude, method='linear')
 
     # vertical interpolation
     tmp = tmp.interp(level=model_level_p, method='linear', kwargs={'fill_value': 'extrapolate'})
@@ -146,6 +146,7 @@ if __name__ == "__main__":
         var3d_out = xr.zeros_like(var_years[VAR].isel(year=-1).squeeze()) + var3d_out
         
         print("### Regridding and saving ###")
+        print(var3d_out)
 
         # Interpolate and save as nc file
-        var_interp = interpolate_to_model_grid(var3d_out, VAR=VAR).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')
+        var_interp = interpolate_to_model_grid(var3d_out, var=VAR).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')

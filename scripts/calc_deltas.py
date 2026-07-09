@@ -140,13 +140,19 @@ if __name__ == "__main__":
         olsreg.fit( X = X )
 
         # compute estimated attributable warming over 1850-1900 to endyear period
-        var3d_out = olsreg.b1 * (awi.loc[END_YEAR] - awi.loc[1850:1900].mean())
+        awi_change = awi.loc[END_YEAR] - awi.loc[1850:1900].mean()
+        var3d_out = olsreg.b1 * awi_change
+        var3d_err = olsreg.err_b1 * awi_change # standard error of the delta (slope error scaled by same AWI change)
 
-        # create DataArray object
+        # create DataArray objects
         var3d_out = xr.zeros_like(var_years[VAR].isel(year=-1).squeeze()) + var3d_out
-        
+        var3d_err = xr.zeros_like(var_years[VAR].isel(year=-1).squeeze()) + var3d_err
+
         print("### Regridding and saving ###")
         print(var3d_out)
 
         # Interpolate and save as nc file
         var_interp = interpolate_to_model_grid(var3d_out, var=VAR).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_ERA5_{START_YEAR}-{END_YEAR}.nc')
+
+        # Interpolate and save standard errors on the same model grid (netcdf only, no spherical harmonics)
+        interpolate_to_model_grid(var3d_err, var=VAR).to_netcdf(f'{DELTA_PATH}/{VAR}_{month}_delta_stderr_ERA5_{START_YEAR}-{END_YEAR}.nc')

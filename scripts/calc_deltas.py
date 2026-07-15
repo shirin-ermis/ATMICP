@@ -39,7 +39,8 @@ def interpolate_to_model_grid(ds, var):
     tmp = ds.interp(latitude=ref_ds.latitude, longitude=ref_ds.longitude, method='linear')
 
     # vertical interpolation
-    tmp = tmp.interp(level=model_level_p, method='linear', kwargs={'fill_value': 'extrapolate'})
+    if not var=='sp':
+        tmp = tmp.interp(level=model_level_p, method='linear', kwargs={'fill_value': 'extrapolate'})
 
     # add output into frame of reference dataset
     target = xr.zeros_like(ref_ds) + tmp.values[::-1]
@@ -103,11 +104,19 @@ if __name__ == "__main__":
     print("### Importing data ###")
     
     # Load ERA5 data
-    era5_var  = xr.open_dataset(f'{AOPP_BASE_PATH}/ERA5/{VAR}_monthly/{VAR}_mon_ERA5_0.25x0.25_197901-202512.nc').rename(
+    if not VAR=='sp':
+        era5_var  = xr.open_dataset(f'{AOPP_BASE_PATH}/ERA5/{VAR}_monthly/{VAR}_mon_ERA5_0.25x0.25_197901-202512.nc').rename(
         {'valid_time': 'time', 'pressure_level': 'level'}
-    )
+        )
+    else:
+        era5_var  = xr.open_dataset(f'{AOPP_BASE_PATH}/ERA5/{VAR}_monthly/{VAR}_mon_ERA5_0.25x0.25_197901-202512.nc').rename(
+        {'valid_time': 'time'}
+        )
+    
+    # is variable on spherical harmonics in IFS?
     sh_var = {'q': False, 't': True, 'd': True,
-              'vo': True, 'u': False, 'v': False}[VAR] # is this variable on the spherical harmonic grid?
+              'vo': True, 'u': False, 'v': False, 
+              'sp': True}[VAR] # is this variable on the spherical harmonic grid?
 
     # Anthropogenic warming index
     awi = get_AWI()
@@ -124,7 +133,12 @@ if __name__ == "__main__":
         print(f"### Regressing using data from {START_YEAR} to {END_YEAR} ###")
         
         # Interpolate variable
-        timeslices = [x for x in np.arange(START_YEAR,END_YEAR+1,1)] 
+        if not VAR=='sp':
+            timeslices = [x for x in np.arange(START_YEAR,END_YEAR+1,1)] 
+        else:
+            # TODO
+            raise ValueError("Surface pressure regression not implemented yet")
+
         X = np.array([awi.loc[timeslice] for timeslice in timeslices])
         X = X[:,None,None,None]
         Y = var_years[VAR].squeeze().values

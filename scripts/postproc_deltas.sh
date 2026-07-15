@@ -9,7 +9,7 @@
 #SBATCH --partition=shared                # Partition/queue name (adjust for your system)
 #SBATCH --mail-type=END,FAIL              # Notifications for job completion/failure
 #SBATCH --mail-user=shirin.ermis@physics.ox.ac.uk    # Your email (optional)
-#SBATCH --array=0-14                       # IMPORTANT: set to 0-(#VARS * #MONTHS - 1)
+#SBATCH --array=0-2                       # IMPORTANT: set to 0-(#VARS * #MONTHS - 1)
 
 # Load necessary modules (if required)
 source /home/e/ermis/nobackups/miniforge3/etc/profile.d/conda.sh
@@ -18,7 +18,7 @@ conda activate debug_forecast-icp
 
 # Change variables and months here; the array runs all VAR x MONTH combinations.
 # Remember to update the #SBATCH --array line above: 0-(#VARS * #MONTHS - 1)
-VARS=(t q d vo sp)
+VARS=(vo)
 MONTHS=(5 6 7)
 START_YEAR=1979
 END_YEAR=2021
@@ -30,6 +30,12 @@ on_spherical_harm[t]=true
 on_spherical_harm[d]=true
 on_spherical_harm[vo]=true
 on_spherical_harm[sp]=true
+
+# GRIB2 parameter override, format num.cat.discipline (cdo setparam).
+# Needed where the netCDF name is ambiguous in the ecCodes tables: "vo" also
+# matches an ocean current parameter, which cdo picks -> shortName=unknown.
+declare -A grib2_param
+grib2_param[vo]=12.2.0 # relative vorticity, paramId 138
 
 # directories
 deltas_dir='/gf5/predict/AWH019_ERMIS_ATMICP/DATA/postproc/deltas'
@@ -55,7 +61,7 @@ month=${MONTHS[$(( SLURM_ARRAY_TASK_ID % NMONTHS ))]}
 echo "Task $SLURM_ARRAY_TASK_ID: postprocessing $VAR delta for month $month, spherical harmonics: ${on_spherical_harm[$VAR]}"
 
 # calculate deltas from monthly means
-python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
+# python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
 # name of delta file
 delta_file="${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc"
@@ -63,6 +69,12 @@ delta_file="${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc"
 # per-task temp file names so concurrent array tasks don't clobber each other
 tmp="tmp_${VAR}_${month}"
 donor="donor_${VAR}_${month}"
+
+# optional -setparam operator to force the correct GRIB2 parameter
+SETPARAM=""
+if [[ -n "${grib2_param[$VAR]}" ]]; then
+    SETPARAM="-setparam,${grib2_param[$VAR]}"
+fi
 
 if [[ "${on_spherical_harm[$VAR]}" == "false" ]]; then # for variables on regular grid
 
@@ -77,7 +89,7 @@ if [[ "${on_spherical_harm[$VAR]}" == "false" ]]; then # for variables on regula
     ncks -A -v level,hyam,hybm,hyai,hybi ${deltas_dir}/${donor}.nc ${deltas_dir}/${tmp}.nc
 
     # Convert to grib2
-    cdo -f grb2 copy ${deltas_dir}/${tmp}.nc ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
+    cdo -f grb2 copy $SETPARAM ${deltas_dir}/${tmp}.nc ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
 
     # Clean up
     rm ${deltas_dir}/${tmp}.nc
@@ -98,7 +110,7 @@ else
 
     # Convert file to grib in spherical coordinates (sp stays single-level)
     cdo setmisstoc,0 ${deltas_dir}/${tmp}.nc ${deltas_dir}/${tmp}_tmp.grb2
-    cdo -f grb2 gp2spl ${deltas_dir}/${tmp}_tmp.grb2 ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
+    cdo -f grb2 gp2spl $SETPARAM ${deltas_dir}/${tmp}_tmp.grb2 ${deltas_dir}/${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.grb2
 
     # Clean up
     rm ${deltas_dir}/${tmp}_tmp.grb2

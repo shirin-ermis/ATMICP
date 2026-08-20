@@ -9,7 +9,7 @@
 #SBATCH --partition=shared                # Partition/queue name (adjust for your system)
 #SBATCH --mail-type=END,FAIL              # Notifications for job completion/failure
 #SBATCH --mail-user=shirin.ermis@physics.ox.ac.uk    # Your email (optional)
-#SBATCH --array=0-2                       # IMPORTANT: set to 0-(#VARS * #MONTHS - 1)
+#SBATCH --array=0-11                       # IMPORTANT: set to 0-(#VARS * #MONTHS - 1)
 
 # Load necessary modules (if required)
 source /home/e/ermis/nobackups/miniforge3/etc/profile.d/conda.sh
@@ -18,9 +18,9 @@ conda activate debug_forecast-icp
 
 # Change variables and months here; the array runs all VAR x MONTH combinations.
 # Remember to update the #SBATCH --array line above: 0-(#VARS * #MONTHS - 1)
-VARS=(vo)
+VARS=(t q d vo)
 MONTHS=(5 6 7)
-START_YEAR=1979
+START_YEAR=1950
 END_YEAR=2021
 
 # is variable in spherical harmonics in IFS?
@@ -61,7 +61,7 @@ month=${MONTHS[$(( SLURM_ARRAY_TASK_ID % NMONTHS ))]}
 echo "Task $SLURM_ARRAY_TASK_ID: postprocessing $VAR delta for month $month, spherical harmonics: ${on_spherical_harm[$VAR]}"
 
 # calculate deltas from monthly means
-# python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
+python calc_deltas.py --month "$month" --var "$VAR" --start_year "$START_YEAR" --end_year "$END_YEAR" # calculate deltas for the month of perturbation
 
 # name of delta file
 delta_file="${VAR}_${month}_delta_ERA5_${START_YEAR}-${END_YEAR}.nc"

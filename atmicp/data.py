@@ -81,7 +81,8 @@ class Data:
             res='US025',
             levtype='sfc',
             inidates=None,
-            runs='iterated'
+            runs='iterated',
+            variables=None
             ):
 
         """Get IFS data
@@ -108,6 +109,9 @@ class Data:
             every inidate on disk for 'legacy'.
         runs: str
             Which experiment set to load, one of RUN_SETS ('iterated', 'legacy')
+        variables: list of str, optional
+            Variables to load. Defaults to ['t2m', 'msl', 'tcwv'] for 'sfc' and
+            ['t', 'z', 'q', 'u', 'v'] for 'pl'.
 
         Returns
         -------
@@ -144,8 +148,9 @@ class Data:
 
         base_dir = '/gf5/predict/AWH019_ERMIS_ATMICP/ITERATION/MED-R/EXP/{}/{}/{}/{}' # exp, res, levtype, cf
 
-        variables = {'sfc': ['t2m', 'msl', 'tcwv'],
-            'pl': ['t', 'z', 'q']}
+        if variables is None:
+            variables = {'sfc': ['t2m', 'msl', 'tcwv'],
+                         'pl': ['t', 'z', 'q', 'u', 'v']}[levtype]
 
         # collect per-climate datasets (each will have climate dim length 1)
         climate_dsets = []
@@ -165,11 +170,17 @@ class Data:
                         continue
 
                     print(f"Loading {len(paths)} file(s) for {expver} ({c}) from {dir_path}", flush=True)
+                    # stack explicitly along inidate: 'time' is valid time, so
+                    # it overlaps between inidates and must be outer-joined, not
+                    # concatenated (which combine_by_coords tries to do)
                     ds = xr.open_mfdataset(
                         paths,
                         engine='netcdf4',
-                        preprocess=bb.data.Data.preproc_ds_v2
-                    ).get(variables[levtype])
+                        preprocess=bb.data.Data.preproc_ds_v2,
+                        combine='nested',
+                        concat_dim='inidate',
+                        join='outer'
+                    ).get(variables)
 
                     # give single-file/collection the scalar dims climate & perturbation
                     ds = ds.expand_dims(climate=[exp], perturbation=[perturb_dict[expver]])
@@ -194,7 +205,7 @@ class Data:
                 continue
 
             # concat all perturbations for THIS climate along 'perturbation'
-            climate_ds = xr.concat(perturb_dsets, dim='perturbation')
+            climate_ds = xr.concat(perturb_dsets, dim='perturbation', join='outer')
             climate_dsets.append(climate_ds)
 
         if not climate_dsets:
@@ -204,7 +215,7 @@ class Data:
             )
 
         # finally concat across climates
-        ifs = xr.concat(climate_dsets, dim='climate')
+        ifs = xr.concat(climate_dsets, dim='climate', join='outer')
 
         return ifs
 

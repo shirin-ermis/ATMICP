@@ -8,6 +8,7 @@ import warnings
 import babet as bb
 from moarpalettes import get_palette
 import dask
+import numpy as np
 
 
 # Experiment sets that get_ifs_data knows how to load.
@@ -325,3 +326,145 @@ class Data:
         
         return lsm
 
+
+    def preproc_leadtime(ds):
+        """
+        bb.data.Data.preproc_ds_v2 + convert the time axis to lead time
+        (hours since initialisation).
+
+        Doing the conversion here, per file, keeps time 1-dimensional. If it is done
+        after combining, ds.time - ds.inidate broadcasts to (inidate, time) and the
+        2D 'time' coord can no longer be indexed/selected.
+        """
+        ds = bb.data.Data.preproc_ds_v2(ds)
+
+        inidate = ds.inidate.values[0]
+        ds = ds.assign_coords(time=(ds.time - inidate) / np.timedelta64(1, 'h'))
+        ds.time.attrs = {'long_name': 'lead time', 'units': 'hours since initialisation'}
+
+        return ds
+
+
+    def expver_paths(expver, cf, levtype='pl', 
+                     base_dir='/gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/INTEGRATIONS/GLO100/{}/{}/'):
+        """Retrieved files for one experiment, sorted by initialisation date.
+
+        Matching on '{expver}_' rather than '{expver}' matters: the same directories
+        hold '<expver>_sh_<date>.nc' spectral files from earlier work, which a bare
+        prefix would pull in as extra inidates.
+        """
+        return sorted(glob.glob(os.path.join(base_dir.format(levtype, cf),
+                                            f'{expver}_????-??-??.nc')))
+
+
+    def file_coords(paths):
+        """(inidates, level sets) of a list of files, read from the headers only."""
+        inidates, levels = [], []
+        for path in paths:
+            inidates.append(os.path.basename(path).split('_')[-1][:-3])
+            with xr.open_dataset(path) as ds:
+                levels.append(frozenset(int(lev) for lev in ds.level.values))
+        return inidates, levels
+
+    def load_expver(expver, levtype='pl'):
+        """One experiment as a single dataset, or None if nothing is on disk yet.
+
+        The control and perturbed forecasts are combined into one 'number'
+        dimension (cf is number 0, pf is 1..10). Levels are sorted afterwards because the
+        retrieval added 50 hPa part way through, and combine_by_coords returns the
+        outer join of the level sets in file order for cf but sorted for pf -- so
+        the two come out in a different order unless they are normalised here.
+        """
+        dsets = []
+        for cf in ('cf', 'pf'):
+            paths = Data.expver_paths(expver, cf, levtype)
+            if not paths:
+                continue
+            dsets.append(xr.open_mfdataset(paths, preprocess=Data.preproc_leadtime,
+                                        combine='by_coords', parallel=True))
+
+        if not dsets:
+            return None
+
+        return xr.concat(dsets, dim='number').sortby('level')
+
+
+    def survey(levtype='pl', ITER=RUN_SETS['iterated']):
+        """What is on disk per experiment, read from the file names and headers.
+
+        Reading this from the files rather than from the loaded array is what keeps
+        the rest of the notebook cheap: the combined dataset is an outer join over
+        every experiment, so most of it is NaN padding, and asking *it* which
+        inidates and levels exist would mean reading several GB.
+
+        'levels' is the intersection over the files of an experiment and 'levels_any'
+        the union; they differ where a re-retrieval is half done, and only the
+        intersection is safe to select on.
+        """
+
+        EXPVERS={expver: (climate, ITER['perturbation'][expver])
+                   for climate, expvers in ITER['expver'].items() for expver in expvers
+                   if ITER['perturbation'][expver] in ('iterated', 'iterated_short', 'none')}
+        
+        rows = {}
+        for expver, (climate, pert) in EXPVERS.items():
+            row = {'climate': climate, 'perturbation': pert}
+            inidates, levels = set(), []
+            for cf in ('cf', 'pf'):
+                inis, levs = Data.file_coords(Data.expver_paths(expver, cf, levtype))
+                row[f'n_{cf}'] = len(inis)
+                row[f'inidates_{cf}'] = inis
+                inidates |= set(inis)
+                levels += levs
+
+            row['inidates'] = sorted(inidates)
+            row['levels'] = sorted(set.intersection(*map(set, levels))) if levels else []
+            row['levels_any'] = sorted(set.union(*map(set, levels))) if levels else []
+            rows[expver] = row
+
+        return rows
+
+    def load_iterations(levtype='pl', 
+                        CLIMATE_ORDER = ['pi', 'curr', 'incr'], 
+                        ITER=RUN_SETS['iterated'],
+                        base_dir='/gf5/predict/AWH019_ERMIS_ATMICP/test_ATMICP/INTEGRATIONS/GLO100/{}/{}/'):
+        """Every retrieved experiment in one dataset, dimensioned like get_ifs_data.
+
+        Experiments that have not been retrieved yet are warned about and skipped,
+        so the notebook runs against a partially downloaded set and picks the rest
+        up on the next run. The result is lazy and mostly NaN padding -- concat
+        outer-joins the differing inidate and level coordinates -- so nothing should
+        be computed before it has been selected down.
+        """
+
+        EXPVERS = {expver: (climate, ITER['perturbation'][expver])
+           for climate, expvers in ITER['expver'].items() for expver in expvers
+           if ITER['perturbation'][expver] in ('iterated', 'iterated_short', 'none')}
+
+
+        climate_dsets = []
+        for climate in CLIMATE_ORDER:
+            perturb_dsets = []
+            for expver, (clim, pert) in EXPVERS.items():
+                if clim != climate:
+                    continue
+
+                ds = Data.load_expver(expver, levtype)
+                if ds is None:
+                    warnings.warn(f'No files for {expver} ({climate}, {pert}) in '
+                                f'{base_dir.format(levtype, "[cf|pf]")} - skipping it.')
+                    continue
+
+                perturb_dsets.append(ds.expand_dims(climate=[climate],
+                                                    perturbation=[pert]))
+
+            if not perturb_dsets:
+                warnings.warn(f"No experiments found for climate '{climate}' - skipping it.")
+                continue
+
+            climate_dsets.append(xr.concat(perturb_dsets, dim='perturbation'))
+
+        if not climate_dsets:
+            raise FileNotFoundError(f"No files at all under {base_dir.format(levtype, '*')}")
+
+        return xr.concat(climate_dsets, dim='climate')

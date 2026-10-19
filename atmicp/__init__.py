@@ -11,3 +11,4 @@ from .constants import Constants  # noqa
 
 # Shared figure style, used as atmicp.style.<...> in the notebooks
 from . import style  # noqa
+from . import plot  # noqa

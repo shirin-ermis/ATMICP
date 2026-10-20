@@ -83,7 +83,8 @@ class Data:
             levtype='sfc',
             inidates=None,
             runs='iterated',
-            variables=None
+            variables=None,
+            sst=False
             ):
 
         """Get IFS data
@@ -113,6 +114,9 @@ class Data:
         variables: list of str, optional
             Variables to load. Defaults to ['t2m', 'msl', 'tcwv'] for 'sfc' and
             ['t', 'z', 'q', 'u', 'v'] for 'pl'.
+        sst: bool
+            Whether to load the SST and sea ice concentration files instead of the
+            usual surface or pressure-level fields. Only valid for levtype='sfc'.
 
         Returns
         -------
@@ -134,6 +138,8 @@ class Data:
 
         if res == 'US025' and levtype == 'pl':
             raise ValueError("res 'US025' only supports levtype 'sfc'")
+        if sst and levtype != 'sfc':
+            raise ValueError("sst=True only supports levtype 'sfc'")
 
         if runs not in RUN_SETS:
             raise ValueError(f"runs must be one of {sorted(RUN_SETS)}")
@@ -150,8 +156,8 @@ class Data:
         base_dir = '/gf5/predict/AWH019_ERMIS_ATMICP/ITERATION/MED-R/EXP/{}/{}/{}/{}' # exp, res, levtype, cf
 
         if variables is None:
-            variables = {'sfc': ['t2m', 'msl', 'tcwv'],
-                         'pl': ['t', 'z', 'q', 'u', 'v']}[levtype]
+            variables = ['sst', 'siconc'] if sst else {'sfc': ['t2m', 'msl', 'tcwv'], 'pl': ['t', 'z', 'q', 'u', 'v']}[levtype]
+
 
         # collect per-climate datasets (each will have climate dim length 1)
         climate_dsets = []
@@ -164,7 +170,7 @@ class Data:
                 number_dsets = []
                 for c in cf_option:
                     dir_path = base_dir.format(exp, res, levtype, c)
-                    paths = Data._inidate_paths(dir_path, expver, inidates)
+                    paths = Data._inidate_paths(dir_path, expver, inidates,sst=sst)
 
                     # nothing retrieved for this expver/cf combination yet
                     if not paths:
@@ -220,7 +226,7 @@ class Data:
 
         return ifs
 
-    def _inidate_paths(dir_path, expver, inidates):
+    def _inidate_paths(dir_path, expver, inidates, sst=False):
         """Existing files for `expver` in `dir_path`, for the given inidates.
 
         `inidates=None` globs every inidate on disk, which is how this function
@@ -246,8 +252,9 @@ class Data:
             return sorted(glob.glob(os.path.join(dir_path, f'{expver}*.nc')))
 
         paths, missing = [], []
+        suffix = '_SST' if sst else ''
         for inidate in inidates:
-            path = os.path.join(dir_path, f'{expver}_{inidate}.nc')
+            path = os.path.join(dir_path, f'{expver}_{inidate}{suffix}.nc')
             (paths if os.path.exists(path) else missing).append(path)
 
         # only worth flagging a partial retrieval: an expver with nothing at all
@@ -385,8 +392,11 @@ class Data:
 
         if not dsets:
             return None
-
-        return xr.concat(dsets, dim='number').sortby('level')
+        if levtype == 'pl':
+            output = xr.concat(dsets, dim='number').sortby('level')
+        else:
+            output = xr.concat(dsets, dim='number')
+        return output
 
 
     def survey(levtype='pl', ITER=RUN_SETS['iterated']):

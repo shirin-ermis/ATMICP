@@ -301,18 +301,35 @@ def panel_labels(axes, letters=None, colors=None, **kwargs):
 
 
 # --- saving -----------------------------------------------------------------
-def save(fig, stem, directory="../figures", formats=("png",), **kwargs):
+SUPTITLE = True               # False: saved figures leave out their suptitle
+
+
+def save(fig, stem, directory="../figures", formats=("png",), suptitle=None,
+         **kwargs):
     """Save `fig` as ``<directory>/<stem>.<fmt>`` for each format.
 
     Uses the shared dpi and bounding box so every figure lands in the paper
-    with the same margins.
+    with the same margins. ``suptitle=False`` hides the suptitle in the saved
+    file only; None defers to SUPTITLE.
     """
     kwargs.setdefault("dpi", 600)
     kwargs.setdefault("bbox_inches", "tight")
     kwargs.setdefault("facecolor", "white")
+
+    title = fig._suptitle
+    hide = title is not None and not (SUPTITLE if suptitle is None else suptitle)
+    if hide:
+        shown = title.get_visible(), title.get_in_layout()
+        title.set_visible(False)
+        title.set_in_layout(False)
+
     paths = []
     for fmt in formats:
         path = os.path.join(directory, f"{stem}.{fmt}")
         fig.savefig(path, **kwargs)
         paths.append(path)
+
+    if hide:
+        title.set_visible(shown[0])
+        title.set_in_layout(shown[1])
     return paths

@@ -9,6 +9,7 @@ import babet as bb
 from moarpalettes import get_palette
 import dask
 import numpy as np
+import pandas as pd
 
 
 # Experiment sets that get_ifs_data knows how to load.
@@ -76,6 +77,7 @@ class Data:
     def __init__(self, value=44):
         self.value = value
 
+
     def get_ifs_data(
             cf_option=['cf', 'pf'],
             exp_option=['pi', 'curr', 'incr'],
@@ -84,7 +86,9 @@ class Data:
             inidates=None,
             runs='iterated',
             variables=None,
-            sst=False
+            sst=False,
+            mxt2=False,
+            strato=False,
             ):
 
         """Get IFS data
@@ -117,6 +121,9 @@ class Data:
         sst: bool
             Whether to load the SST and sea ice concentration files instead of the
             usual surface or pressure-level fields. Only valid for levtype='sfc'.
+        mxt2: bool
+            Whether to load the maximum 2m temperature files ('_maxt2m') instead of
+            the usual surface or pressure-level fields. Only valid for levtype='sfc'.
 
         Returns
         -------
@@ -140,6 +147,12 @@ class Data:
             raise ValueError("res 'US025' only supports levtype 'sfc'")
         if sst and levtype != 'sfc':
             raise ValueError("sst=True only supports levtype 'sfc'")
+        if mxt2 and levtype != 'sfc':
+            raise ValueError("mxt2=True only supports levtype 'sfc'")
+        if sst and mxt2:
+            raise ValueError("sst and mxt2 cannot both be True")
+        if strato and levtype != 'pl':
+            raise ValueError("strato=True only supports levtype 'pl'")
 
         if runs not in RUN_SETS:
             raise ValueError(f"runs must be one of {sorted(RUN_SETS)}")
@@ -147,6 +160,8 @@ class Data:
         run_set = RUN_SETS[runs]
         expver_dict = run_set['expver']
         perturb_dict = run_set['perturbation']
+        preprocess=Data.preproc_keep_time if strato else bb.data.Data.preproc_ds_v2 # only one timestep in strato files so need to avoid .squeeze()
+
 
         # None means "use this run set's default", which is itself allowed to be
         # None for the legacy set (i.e. glob every inidate on disk)
@@ -156,7 +171,14 @@ class Data:
         base_dir = '/gf5/predict/AWH019_ERMIS_ATMICP/ITERATION/MED-R/EXP/{}/{}/{}/{}' # exp, res, levtype, cf
 
         if variables is None:
-            variables = ['sst', 'siconc'] if sst else {'sfc': ['t2m', 'msl', 'tcwv'], 'pl': ['t', 'z', 'q', 'u', 'v']}[levtype]
+            if sst:
+                variables = ['sst', 'siconc']
+            elif mxt2:
+                variables = ['mx2t']
+            elif strato:
+                variables = ['t']
+            else:
+                variables = {'sfc': ['t2m', 'msl', 'tcwv'], 'pl': ['t', 'z', 'q', 'u', 'v']}[levtype]
 
 
         # collect per-climate datasets (each will have climate dim length 1)
@@ -170,7 +192,7 @@ class Data:
                 number_dsets = []
                 for c in cf_option:
                     dir_path = base_dir.format(exp, res, levtype, c)
-                    paths = Data._inidate_paths(dir_path, expver, inidates,sst=sst)
+                    paths = Data._inidate_paths(dir_path, expver, inidates, sst=sst, mxt2=mxt2, strato=strato)
 
                     # nothing retrieved for this expver/cf combination yet
                     if not paths:
@@ -183,7 +205,7 @@ class Data:
                     ds = xr.open_mfdataset(
                         paths,
                         engine='netcdf4',
-                        preprocess=bb.data.Data.preproc_ds_v2,
+                        preprocess=preprocess,
                         combine='nested',
                         concat_dim='inidate',
                         join='outer'
@@ -226,7 +248,18 @@ class Data:
 
         return ifs
 
-    def _inidate_paths(dir_path, expver, inidates, sst=False):
+    
+    def preproc_keep_time(ds):
+        """babet's preproc_ds_v2, but keeps a length-1 time dim."""
+        ds1 = ds.squeeze([d for d in ds.dims if ds.sizes[d] == 1 and d != 'time'])
+        if 'inidate' not in ds1:
+            ds1 = ds1.expand_dims(inidate=[pd.to_datetime(ds1.time[0].values)])
+        if 'number' not in ds1:
+            ds1 = ds1.expand_dims(number=[0])
+        return ds1.transpose('time', ...)
+
+    
+    def _inidate_paths(dir_path, expver, inidates, sst=False, mxt2=False, strato=False):
         """Existing files for `expver` in `dir_path`, for the given inidates.
 
         `inidates=None` globs every inidate on disk, which is how this function
@@ -252,7 +285,7 @@ class Data:
             return sorted(glob.glob(os.path.join(dir_path, f'{expver}*.nc')))
 
         paths, missing = [], []
-        suffix = '_SST' if sst else ''
+        suffix = '_SST' if sst else '_maxt2m' if mxt2 else '_t_only' if strato else ''
         for inidate in inidates:
             path = os.path.join(dir_path, f'{expver}_{inidate}{suffix}.nc')
             (paths if os.path.exists(path) else missing).append(path)
@@ -278,7 +311,7 @@ class Data:
         ----------
         var: str
             ERA5 short name, one of the variables the download script
-            retrieves ('t2m', 'tcwv')
+            retrieves ('t2m', 'tcwv', 'mxt2'; the 'mxt2' file holds 'mx2t')
         path: str, optional
             Override the default file location
 

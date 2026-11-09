@@ -14,7 +14,8 @@ import cdsapi
 # short name -> CDS long name
 VARIABLES = {
     # 't2m': '2m_temperature',
-    'tcwv': 'total_column_water_vapour',
+    # 'tcwv': 'total_column_water_vapour',
+    'mxt2': 'maximum_2m_temperature_since_previous_post_processing'
 }
 
 BASEDIR = '/gf5/predict/AWH019_ERMIS_ATMICP/DATA/ERA5'

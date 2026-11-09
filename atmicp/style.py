@@ -38,11 +38,11 @@ MUTED = "#5C5C60"
 REF_WIDTH = 7.2               # inches, the PAPER1 canvas width
 
 FS_PANEL = 12.0               # subplot labels a, b, c ...
-FS_HEADER = 9.4               # column / row headers
-FS_TITLE = 9.5                # panel titles
-FS_LABEL = 9.0                # axis and colourbar labels
+FS_HEADER = 10               # column / row headers
+FS_TITLE = 10                # panel titles
+FS_LABEL = 10                # axis and colourbar labels
 FS_TICK = 8.0                 # tick labels
-FS_ANNOT = 8.5                # in-plot annotation and legends
+FS_ANNOT = 8                # in-plot annotation and legends
 
 # Dense multi-panel grids (PAPER3's 7x4 of maps) cannot carry type at the sizes
 # above without headers running into each other. These are for those figures.
